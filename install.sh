@@ -38,6 +38,11 @@ fi
 #   - CATTLE_REMOTE_ENABLED (default: true)
 #   - CATTLE_LOCAL_ENABLED (default: false)
 #   - CATTLE_ID (default: autogenerate)
+#   - CATTLE_SKIP_REGISTRATION (default: false)
+#     When true and existing connection information is present, skip node
+#     registration and preserve the current cattle-id. Used by the
+#     system-agent-upgrader so upgrading the agent does not register an
+#     already provisioned node again.
 #   - CATTLE_AGENT_BINARY_LOCAL (default: false)
 #   - CATTLE_AGENT_BINARY_LOCAL_LOCATION (default: )
 #   - CATTLE_AGENT_BINARY_CHECKSUM (default: hardcoded fallback checksum)
@@ -938,6 +943,10 @@ ensure_applyinator_not_active() {
     rm -f "${FILE_APPLYINATOR}"
 }
 
+should_skip_registration() {
+    [ "${CATTLE_SKIP_REGISTRATION}" = "true" ] && [ -s "${CATTLE_AGENT_VAR_DIR}/rancher2_connection_info.json" ]
+}
+
 do_install() {
     if [ $(id -u) != 0 ]; then
       fatal "This script must be run as root."
@@ -967,8 +976,12 @@ do_install() {
     generate_config
 
     if [ -n "${CATTLE_TOKEN}" ]; then
-        generate_cattle_identifier
-        retrieve_connection_info || fatal "Aborting system-agent installation due to failure to retrieve Rancher connection information"
+        if should_skip_registration; then
+            info "Existing Rancher connection information found; skipping node re-registration"
+        else
+            generate_cattle_identifier
+            retrieve_connection_info || fatal "Aborting system-agent installation due to failure to retrieve Rancher connection information"
+        fi
     fi
     create_systemd_service_file
     create_env_file
