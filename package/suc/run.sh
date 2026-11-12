@@ -2,6 +2,29 @@
 
 set -x -e
 
+# Reuse the data directory chosen by the initial installer so the existing
+# rancher2_connection_info.json is found. The image default may differ from
+# the path used by the bootstrap on transactional systems.
+config_dir=${CATTLE_AGENT_CONFIG_DIR:-/etc/rancher/agent}
+config_file="/host${config_dir}/config.yaml"
+if [ -f "${config_file}" ]; then
+    line=$(grep -m1 '^workDirectory:' "${config_file}" 2>/dev/null || true)
+    dir=${line#workDirectory: }
+    dir=${dir%/work}
+    if [ -n "${dir}" ] && [ "${dir}" != "${line}" ]; then
+        export CATTLE_AGENT_VAR_DIR="${dir}"
+    fi
+fi
+
+# The upgrader only replaces the agent binary. Re-registering would create a
+# custom-<hash> Machine when cattle-id is not visible; install.sh falls back to
+# registration if the existing connection info is missing. Set
+# CATTLE_SKIP_REGISTRATION=false in the Plan to force re-registration.
+if [ -z "${CATTLE_SKIP_REGISTRATION}" ]; then
+    CATTLE_SKIP_REGISTRATION=true
+fi
+export CATTLE_SKIP_REGISTRATION
+
 CATTLE_AGENT_VAR_DIR=${CATTLE_AGENT_VAR_DIR:-/var/lib/rancher/agent}
 TMPDIRBASE=${CATTLE_AGENT_VAR_DIR}/tmp
 

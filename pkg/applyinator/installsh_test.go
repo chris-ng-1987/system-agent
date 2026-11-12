@@ -265,3 +265,27 @@ func TestInstallShServiceUnitClearsInterlock(t *testing.T) {
 		t.Error("ExecStartPre is not prefixed with '-', so a missing /bin/rm would fail the unit")
 	}
 }
+
+// TestInstallShShouldSkipRegistration pins the upgrader's re-registration guard.
+func TestInstallShShouldSkipRegistration(t *testing.T) {
+	varDir := t.TempDir()
+	env := []string{"CATTLE_AGENT_VAR_DIR=" + varDir, "CATTLE_SKIP_REGISTRATION=true"}
+
+	if out, err := runInstallShFunc(t, env, "should_skip_registration"); err == nil {
+		t.Fatalf("expected should_skip_registration to fail without connection info\n%s", out)
+	}
+
+	connInfo := filepath.Join(varDir, "rancher2_connection_info.json")
+	if err := os.WriteFile(connInfo, []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if out, err := runInstallShFunc(t, env, "should_skip_registration"); err != nil {
+		t.Fatalf("expected should_skip_registration to succeed with connection info: %v\n%s", err, out)
+	}
+
+	env = []string{"CATTLE_AGENT_VAR_DIR=" + varDir, "CATTLE_SKIP_REGISTRATION=false"}
+	if out, err := runInstallShFunc(t, env, "should_skip_registration"); err == nil {
+		t.Fatalf("expected should_skip_registration to fail when skip is false\n%s", out)
+	}
+}
